@@ -24,6 +24,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   const [inputMode, setInputMode] = useState<InputMode>('error');
   const [standaloneLiquid, setStandaloneLiquid] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -158,72 +159,91 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   }
 
   async function processError(errorInput: string) {
-    // 1. 저장된 해결방안 확인
-    const savedSync = findSolutionSync(errorInput);
-    if (savedSync) {
+    setIsProcessing(true);
+    try {
+      // 1. 저장된 해결방안 확인
+      const savedSync = findSolutionSync(errorInput);
+      if (savedSync) {
+        addMessage({
+          role: 'system',
+          content: `이전에 해결된 오류입니다: ${savedSync.description}`,
+          type: 'fix_result',
+          fixedCode: savedSync.fixedCode,
+        });
+        return;
+      }
+
+      const savedRemote = await findSolution(errorInput);
+      if (savedRemote) {
+        addMessage({
+          role: 'system',
+          content: `이전에 해결된 오류입니다: ${savedRemote.description}`,
+          type: 'fix_result',
+          fixedCode: savedRemote.fixedCode,
+        });
+        return;
+      }
+
+      // 2. 규칙 기반 진단
+      if (!activeLiquidCode) {
+        addMessage({
+          role: 'system',
+          content: 'Liquid 코드가 없어 진단할 수 없습니다. 먼저 Liquid 코드를 입력해주세요.',
+          type: 'info',
+        });
+        setInputMode('liquid');
+        return;
+      }
+
+      const result = diagnoseAndFix(errorInput, activeLiquidCode);
+
+      if (!result) {
+        // 인식 불가 오류 → AI 안내 (오류 메시지 + Liquid 코드 함께 복사)
+        addMessage({
+          role: 'system',
+          content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
+          type: 'ai_guide',
+          diagnosis: {
+            errorType: 'unknown',
+            description: '인식할 수 없는 오류 형식입니다',
+            cause: errorInput,
+            fixApplied: 'AI 서비스를 통해 해결해주세요.',
+            fixedCode: activeLiquidCode,
+            changeDetails: [],
+          },
+        });
+        setInputMode('ai_fix');
+        return;
+      }
+
+      if (result.errorType === 'structure' || result.errorType === 'unknown' || result.errorType === 'api_error') {
+        // AI 안내
+        addMessage({
+          role: 'system',
+          content: result.errorType === 'api_error'
+            ? result.description
+            : '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
+          type: result.errorType === 'api_error' ? 'diagnosis' : 'ai_guide',
+          diagnosis: result,
+        });
+        if (result.errorType !== 'api_error') {
+          setInputMode('ai_fix');
+        }
+        return;
+      }
+
+      // 자동 수정 성공
       addMessage({
         role: 'system',
-        content: `이전에 해결된 오류입니다: ${savedSync.description}`,
-        type: 'fix_result',
-        fixedCode: savedSync.fixedCode,
-      });
-      return;
-    }
-
-    const savedRemote = await findSolution(errorInput);
-    if (savedRemote) {
-      addMessage({
-        role: 'system',
-        content: `이전에 해결된 오류입니다: ${savedRemote.description}`,
-        type: 'fix_result',
-        fixedCode: savedRemote.fixedCode,
-      });
-      return;
-    }
-
-    // 2. 규칙 기반 진단
-    if (!activeLiquidCode) {
-      addMessage({
-        role: 'system',
-        content: 'Liquid 코드가 없어 진단할 수 없습니다. 먼저 Liquid 코드를 입력해주세요.',
-        type: 'info',
-      });
-      setInputMode('liquid');
-      return;
-    }
-
-    const result = diagnoseAndFix(errorInput, activeLiquidCode);
-
-    if (!result) {
-      addMessage({
-        role: 'system',
-        content: '오류 형식을 인식할 수 없습니다. 오류 메시지를 정확히 복사해서 다시 붙여넣어 주세요.\n\n예시: {"code":2000,"description":"Unexpected token \\t in JSON at position 217"}',
-        type: 'info',
-      });
-      return;
-    }
-
-    if (result.errorType === 'structure' || result.errorType === 'unknown') {
-      // AI 안내
-      addMessage({
-        role: 'system',
-        content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
-        type: 'ai_guide',
+        content: '',
+        type: 'diagnosis',
         diagnosis: result,
+        fixedCode: result.fixedCode,
+        changeDetails: result.changeDetails,
       });
-      setInputMode('ai_fix');
-      return;
+    } finally {
+      setIsProcessing(false);
     }
-
-    // 자동 수정 성공
-    addMessage({
-      role: 'system',
-      content: '',
-      type: 'diagnosis',
-      diagnosis: result,
-      fixedCode: result.fixedCode,
-      changeDetails: result.changeDetails,
-    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -256,6 +276,17 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
             liquidCode={activeLiquidCode}
           />
         ))}
+        {isProcessing && (
+          <div className="flex justify-start">
+            <div className="px-4 py-2.5 bg-gray-100 rounded-2xl rounded-bl-md">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={chatEndRef} />
       </div>
 

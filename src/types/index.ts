@@ -44,6 +44,7 @@ export type ErrorType =
   | 'single_quote'
   | 'backslash'
   | 'structure'
+  | 'api_error'
   | 'unknown';
 
 export interface ChangeDetail {

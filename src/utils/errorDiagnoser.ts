@@ -48,6 +48,11 @@ export function parseError(errorMessage: string): ParsedError | null {
     };
   }
 
+  // API 오류 패턴: "The to field is required" 등
+  if (/The to field is required/i.test(description)) {
+    return { token: 'API_TO_REQUIRED', position: null };
+  }
+
   return null;
 }
 
@@ -72,6 +77,8 @@ function classifyError(token: string): ErrorType {
       return 'backslash';
     case 'EOF':
       return 'structure';
+    case 'API_TO_REQUIRED':
+      return 'api_error';
     default:
       return 'unknown';
   }
@@ -115,6 +122,12 @@ function getDiagnosisMessages(errorType: ErrorType): {
         description: '백슬래시(\\)가 이스케이프되지 않았습니다',
         cause: '변수값에 백슬래시가 포함되어 JSON에서 잘못된 이스케이프 시퀀스로 해석됩니다.',
         fixApplied: '백슬래시를 이중 이스케이프(\\\\) 처리했습니다.',
+      };
+    case 'api_error':
+      return {
+        description: '수신번호(to) 필드가 누락되었습니다',
+        cause: 'Braze에서 비즈뿌리오로 발송 시 수신번호가 전달되지 않았습니다. Braze 캠페인/캔버스의 수신번호 설정을 확인해주세요.',
+        fixApplied: 'Liquid 코드 문제가 아닌 Braze 설정 문제입니다. 수신번호 필드 매핑을 확인해주세요.',
       };
     case 'structure':
       return {
@@ -291,8 +304,8 @@ export function diagnoseAndFix(
   const messages = getDiagnosisMessages(errorType);
   const changeDetails: ChangeDetail[] = [];
 
-  // 구조적 오류는 자동 수정 불가
-  if (errorType === 'structure') {
+  // 구조적 오류 / API 오류는 자동 수정 불가
+  if (errorType === 'structure' || errorType === 'api_error') {
     return {
       errorType,
       ...messages,
