@@ -238,6 +238,13 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded,
           content: value,
           type: 'error_input',
         });
+
+        // 200 OK는 코드 문제가 아니므로 코드 없이 바로 진단
+        if (/["']?code["']?\s*:\s*200\b/.test(value)) {
+          await processError(value);
+          return;
+        }
+
         setStandaloneError(value);
         addMessage({
           role: 'system',
@@ -341,7 +348,26 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded,
         return;
       }
 
-      // 2. Liquid 코드 검증
+      // 2. 코드 불필요 오류 패턴 (200 OK 등) — 코드 없이도 진단 가능
+      if (/["']?code["']?\s*:\s*200\b/.test(errorInput)) {
+        const diagnosis: DiagnosisResult = {
+          errorType: 'api_200_ok',
+          description: '발송 요청은 성공했으나 메시지가 도달하지 않았습니다',
+          cause: 'Braze에서 비즈뿌리오로의 API 요청은 200 OK로 성공했지만, 비즈뿌리오가 실제 수신자에게 메시지를 전달하지 못했습니다.',
+          fixApplied: 'Platform_Api 계정으로 비즈뿌리오에 로그인하여 발송 결과를 확인해주세요.',
+          fixedCode: '',
+          changeDetails: [],
+        };
+        addMessage({
+          role: 'system',
+          content: '',
+          type: 'diagnosis',
+          diagnosis,
+        });
+        return;
+      }
+
+      // 3. Liquid 코드 검증
       if (!codeToUse) {
         addMessage({
           role: 'system',
@@ -351,7 +377,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded,
         return;
       }
 
-      // 3. 규칙 기반 진단
+      // 4. 규칙 기반 진단
       const result = diagnoseAndFix(errorInput, codeToUse);
 
       // 파싱 자체를 못한 경우 (result === null) → AI 안내
