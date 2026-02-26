@@ -63,7 +63,7 @@ export default function TemplateTypeSelector({ onSelect, onOpenDiagnoser }: Prop
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(rotate, 10000);
+    const interval = setInterval(rotate, 5000);
     return () => clearInterval(interval);
   }, [rotate]);
 
