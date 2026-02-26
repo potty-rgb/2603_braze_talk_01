@@ -80,7 +80,7 @@ function App() {
       {/* StepIndicator — Step 1 이상에서만 표시 */}
       {currentStep > 0 && (
         <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-4 pb-4">
-          <StepIndicator currentStep={currentStep} />
+          <StepIndicator currentStep={result ? 2 : 0} />
         </div>
       )}
 
@@ -107,7 +107,7 @@ function App() {
             {/* 1열: 정보 입력 */}
             <div className="overflow-y-auto scrollbar-thin bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
                 정보 입력
               </h3>
               <InputForm
@@ -119,7 +119,7 @@ function App() {
             {/* 2열: 결과 확인 */}
             <div className="overflow-y-auto scrollbar-thin bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${result ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>3</span>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${result ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>2</span>
                 결과 확인
               </h3>
               {result ? (

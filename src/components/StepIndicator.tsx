@@ -1,4 +1,4 @@
-const STEPS = ['타입 선택', '정보 입력', '결과 확인', '오류 진단'];
+const STEPS = ['정보 입력', '결과 확인', '오류 진단'];
 
 interface Props {
   currentStep: number;

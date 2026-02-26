@@ -184,7 +184,7 @@ export function buildWithoutButtonSections(params: {
       id: 'header-comment',
       type: 'fixed',
       content: `{% comment %}
-[알림톡(AT/AI) 템플릿 사용 방법 – 버튼 미포함 버전]
+[알림톡(AT/AI) 템플릿 사용 방법]
 1) 아래 "발송 설정" 부분만 수정하세요.
    - talk_type
      - 알림톡(텍스트): 'AT'
@@ -242,8 +242,7 @@ export function buildWithoutButtonSections(params: {
       type: 'fixed',
       content: `{% comment %}
 ⭐️ 템플릿 코드 입력 (비즈뿌리오 등록 코드)
-템플릿 코드는 비즈뿌리오 메세지 관리 > 카카오톡 관리 > 알림톡 템플릿 관리에서
-'템플릿코드'를 찾아 사용해주세요.
+템플릿 코드는 비즈뿌리오 메세지 관리 > 카카오톡 관리 > 알림톡 템플릿 관리에서 '템플릿코드' 를 찾아 사용해주세요.
 {% endcomment %}`,
     },
     {
@@ -264,8 +263,9 @@ export function buildWithoutButtonSections(params: {
       id: 'message-body-comment',
       type: 'fixed',
       content: `{% comment %}
-⭐️ 메시지 본문 입력
+⭐️ 메세지 본문 입력
 - 비즈뿌리오 템플릿과 동일해야 발송 성공
+- 여러 줄/따옴표(") 자유 입력을 위해 capture 사용
 {% endcomment %}`,
     },
     {

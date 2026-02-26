@@ -6,6 +6,26 @@ interface Props {
   onSubmit: (data: FormData) => void;
 }
 
+// QA 예시 데이터 (dev 환경 전용)
+const QA_EXAMPLES = {
+  with_button: {
+    templateText: '#{강의명}의 #{쿠폰내용} 쿠폰이 오늘 밤에 마감돼요!\n■ 쿠폰명: #{쿠폰이름} ■ 만료일시: #{만료일시}',
+    sendingText: '<2026NEW! 서울투자 기초반>의 재수강 투자 응원 6만원 쿠폰이 오늘 밤에 마감돼요!\n■ 쿠폰명: 재수강 투자 응원 6만원 쿠폰 ■ 만료일시: 01.29(목) 23:59까지',
+    templateCode: 'bizp_2025123103044120835684085',
+    buttonName: '자세히 보기🎁',
+    urlVariable: '', // 공란값이 유효하므로 비워둠
+    utm: 'https://weolbu.com/event?utm_source=katalk&utm_medium=alimtalk',
+  },
+  without_button: {
+    templateText: '#{고객명}님의 주문이 발송되었습니다.\n■ 주문번호: #{주문번호}\n■ 상품명: #{상품명}\n■ 택배사: #{택배사명} (#{송장번호})\n■ 배송예정일: #{배송예정일}',
+    sendingText: '김철수님의 주문이 발송되었습니다.\n■ 주문번호: ORD-20260226-0042\n■ 상품명: 월부 투자 노트 세트\n■ 택배사: CJ대한통운 (629183740281)\n■ 배송예정일: 02.28(금)',
+    templateCode: 'bizp_2026022601234567890123456',
+    buttonName: '',
+    urlVariable: '',
+    utm: '',
+  },
+};
+
 export default function InputForm({ templateType, onSubmit }: Props) {
   const [templateText, setTemplateText] = useState('');
   const [sendingText, setSendingText] = useState('');
@@ -18,6 +38,44 @@ export default function InputForm({ templateType, onSubmit }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isWithButton = templateType === 'with_button';
+
+  /**
+   * DEV 전용: 모든 텍스트 필드가 비어있으면 예시 데이터로 자동 채움
+   * 프로덕션 빌드에서는 import.meta.env.DEV가 false이므로 실행되지 않음
+   */
+  function fillExampleIfEmpty(): FormData | null {
+    if (!import.meta.env.DEV) return null;
+
+    const textFields = isWithButton
+      ? [templateText, sendingText, templateCode, buttonName, utm]
+      : [templateText, sendingText, templateCode];
+
+    const allEmpty = textFields.every((f) => !f.trim());
+    if (!allEmpty) return null;
+
+    const example = QA_EXAMPLES[templateType];
+    // 상태도 업데이트 (UI 반영)
+    setTemplateText(example.templateText);
+    setSendingText(example.sendingText);
+    setTemplateCode(example.templateCode);
+    if (isWithButton) {
+      setButtonName(example.buttonName);
+      setUrlVariable(example.urlVariable);
+      setUtm(example.utm);
+    }
+
+    return {
+      templateType,
+      templateText: example.templateText,
+      sendingText: example.sendingText,
+      templateCode: example.templateCode,
+      talkType,
+      messageType,
+      buttonName: isWithButton ? example.buttonName : '',
+      urlVariable: isWithButton ? example.urlVariable : '',
+      utm: isWithButton ? example.utm : '',
+    };
+  }
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
@@ -46,6 +104,14 @@ export default function InputForm({ templateType, onSubmit }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // DEV 전용: 모든 필드 비어있으면 예시 데이터로 자동 채움
+    const exampleData = fillExampleIfEmpty();
+    if (exampleData) {
+      onSubmit(exampleData);
+      return;
+    }
+
     if (!validate()) return;
 
     onSubmit({

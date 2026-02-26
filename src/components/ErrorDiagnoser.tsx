@@ -18,11 +18,23 @@ function genId() {
   return `msg_${++msgIdCounter}_${Date.now()}`;
 }
 
+/**
+ * 입력이 Liquid 코드인지 자동 감지
+ * Liquid 태그({%- assign, {%- capture 등)나 JSON API 바디 구조가 포함되면 코드로 판단
+ */
+function isLiquidCode(input: string): boolean {
+  if (/{%-?\s*(assign|capture|comment|if|else|endif|endcapture|endcomment)\b/.test(input)) return true;
+  if (/"account"\s*:/.test(input) && /"senderkey"\s*:/.test(input)) return true;
+  if (/{%-?\s*capture\s+at_message_body/.test(input)) return true;
+  return false;
+}
+
 export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('error');
   const [standaloneLiquid, setStandaloneLiquid] = useState('');
+  const [standaloneError, setStandaloneError] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -41,10 +53,10 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         initMessages.push({
           id: genId(),
           role: 'system',
-          content: 'Braze에서 사용 중인 Liquid 코드 전체를 붙여넣어 주세요.',
+          content: '오류 메시지와 Braze Liquid 코드 전체를 붙여넣어 주세요.\n순서는 상관없이 하나씩 입력해주세요.',
           type: 'info',
         });
-        setInputMode('liquid');
+        setInputMode('error');
       } else {
         initMessages.push({
           id: genId(),
@@ -74,6 +86,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
       setInitialized(false);
       setMessages([]);
       setStandaloneLiquid('');
+      setStandaloneError('');
       setInputValue('');
     }
   }, [isOpen]);
@@ -102,26 +115,6 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
 
     setInputValue('');
 
-    if (inputMode === 'liquid') {
-      // Standalone: 유저가 Liquid 코드를 입력
-      addMessage({
-        role: 'user',
-        content: value.length > 100 ? value.substring(0, 100) + '...' : value,
-        type: 'liquid_input',
-      });
-
-      setStandaloneLiquid(value);
-
-      addMessage({
-        role: 'system',
-        content: '코드를 확인했습니다. 이제 오류 메시지를 붙여넣어 주세요.',
-        type: 'info',
-      });
-
-      setInputMode('error');
-      return;
-    }
-
     if (inputMode === 'ai_fix') {
       // AI 수정 코드 입력
       addMessage({
@@ -148,7 +141,56 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
       return;
     }
 
-    // 에러 메시지 입력
+    // Standalone 초기 단계: 코드와 오류 메시지를 순서 무관하게 수집
+    if (isStandalone && !standaloneLiquid) {
+      const isCode = isLiquidCode(value);
+
+      if (isCode) {
+        // 사용자가 Liquid 코드를 먼저 입력한 경우
+        addMessage({
+          role: 'user',
+          content: value.length > 100 ? value.substring(0, 100) + '...' : value,
+          type: 'liquid_input',
+        });
+        setStandaloneLiquid(value);
+
+        if (standaloneError) {
+          // 이미 오류 메시지도 있음 → 진단 시작
+          addMessage({
+            role: 'system',
+            content: '코드를 확인했습니다. 진단을 시작합니다.',
+            type: 'info',
+          });
+          const errorToProcess = standaloneError;
+          setStandaloneError('');
+          setInputMode('error');
+          await processError(errorToProcess, value);
+        } else {
+          addMessage({
+            role: 'system',
+            content: '코드를 확인했습니다. 이제 오류 메시지를 붙여넣어 주세요.',
+            type: 'info',
+          });
+        }
+        return;
+      } else {
+        // 사용자가 오류 메시지를 먼저 입력한 경우
+        addMessage({
+          role: 'user',
+          content: value,
+          type: 'error_input',
+        });
+        setStandaloneError(value);
+        addMessage({
+          role: 'system',
+          content: '오류 메시지를 확인했습니다. 이제 Braze Liquid 코드 전체를 붙여넣어 주세요.',
+          type: 'info',
+        });
+        return;
+      }
+    }
+
+    // 일반 오류 메시지 입력 (connected 모드, 또는 standalone에서 첫 진단 이후)
     addMessage({
       role: 'user',
       content: value,
@@ -158,8 +200,10 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
     await processError(value);
   }
 
-  async function processError(errorInput: string) {
+  async function processError(errorInput: string, liquidCodeOverride?: string) {
     setIsProcessing(true);
+    const codeToUse = liquidCodeOverride || activeLiquidCode;
+
     try {
       // 1. 저장된 해결방안 확인
       const savedSync = findSolutionSync(errorInput);
@@ -184,39 +228,27 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         return;
       }
 
-      // 2. Liquid 코드 검증 (standalone 모드에서는 반드시 수신해야 함)
-      if (!activeLiquidCode) {
+      // 2. Liquid 코드 검증
+      if (!codeToUse) {
         addMessage({
           role: 'system',
-          content: 'Liquid 코드가 없어 진단할 수 없습니다. 먼저 Liquid 코드를 입력해주세요.',
+          content: 'Liquid 코드가 없어 진단할 수 없습니다. Liquid 코드를 입력해주세요.',
           type: 'info',
         });
-        setInputMode('liquid');
         return;
       }
 
       // 3. 규칙 기반 진단
-      const result = diagnoseAndFix(errorInput, activeLiquidCode);
+      const result = diagnoseAndFix(errorInput, codeToUse);
 
-      // AI 안내가 필요한 경우 (인식 불가 또는 자동 수정 불가)
-      if (!result || result.errorType === 'structure' || result.errorType === 'unknown') {
-        // Standalone 모드: 오류 문안 + Liquid 전문 모두 있는지 재검증
-        if (isStandalone && !standaloneLiquid) {
-          addMessage({
-            role: 'system',
-            content: 'AI 서비스 활용을 위해 Liquid 코드 전문이 필요합니다. Liquid 코드를 먼저 입력해주세요.',
-            type: 'info',
-          });
-          setInputMode('liquid');
-          return;
-        }
-
-        const diagnosis = result || {
-          errorType: 'unknown' as const,
+      // 파싱 자체를 못한 경우 (result === null) → AI 안내
+      if (!result) {
+        const diagnosis: DiagnosisResult = {
+          errorType: 'unknown',
           description: '인식할 수 없는 오류 형식입니다',
           cause: errorInput,
           fixApplied: 'AI 서비스를 통해 해결해주세요.',
-          fixedCode: activeLiquidCode,
+          fixedCode: codeToUse,
           changeDetails: [],
         };
 
@@ -225,6 +257,31 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
           content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
           type: 'ai_guide',
           diagnosis,
+        });
+        setInputMode('ai_fix');
+        return;
+      }
+
+      // 구조적 오류 → AI 안내
+      if (result.errorType === 'structure') {
+        addMessage({
+          role: 'system',
+          content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
+          type: 'ai_guide',
+          diagnosis: result,
+        });
+        setInputMode('ai_fix');
+        return;
+      }
+
+      // unknown 타입이지만 실제 수정이 발생한 경우 → 자동 수정 결과 표시
+      // (예: 이모지 토큰 → json_escape 추가로 수정됨)
+      if (result.errorType === 'unknown' && result.changeDetails.length === 0) {
+        addMessage({
+          role: 'system',
+          content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
+          type: 'ai_guide',
+          diagnosis: result,
         });
         setInputMode('ai_fix');
         return;
@@ -263,15 +320,13 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   }
 
   function getPlaceholder(): string {
-    switch (inputMode) {
-      case 'liquid':
-        return 'Braze Liquid 코드 전체를 붙여넣어 주세요...';
-      case 'ai_fix':
-        return 'AI가 제공한 수정된 코드를 붙여넣어 주세요...';
-      case 'error':
-      default:
-        return '오류 메시지를 붙여넣어 주세요...';
+    if (inputMode === 'ai_fix') return 'AI가 제공한 수정된 코드를 붙여넣어 주세요...';
+    // Standalone 초기 단계: 아직 코드를 받지 못한 상태
+    if (isStandalone && !standaloneLiquid) {
+      if (standaloneError) return 'Braze Liquid 코드 전체를 붙여넣어 주세요...';
+      return '오류 메시지 또는 Liquid 코드를 붙여넣어 주세요...';
     }
+    return '오류 메시지를 붙여넣어 주세요...';
   }
 
   const chatContent = (
@@ -308,7 +363,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
-            rows={inputMode === 'liquid' || inputMode === 'ai_fix' ? 3 : 1}
+            rows={(isStandalone && !standaloneLiquid) || inputMode === 'ai_fix' ? 3 : 1}
             className="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <button
@@ -320,9 +375,10 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1.5 ml-1">
-          {inputMode === 'error' && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
-          {inputMode === 'liquid' && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
           {inputMode === 'ai_fix' && 'ChatGPT/Claude에서 받은 수정 코드를 붙여넣어 주세요'}
+          {inputMode === 'error' && isStandalone && !standaloneLiquid && !standaloneError && '오류 메시지 또는 Liquid 코드, 순서 상관없이 입력해주세요'}
+          {inputMode === 'error' && isStandalone && !standaloneLiquid && standaloneError && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
+          {inputMode === 'error' && (standaloneLiquid || !isStandalone) && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
         </p>
       </div>
     </>

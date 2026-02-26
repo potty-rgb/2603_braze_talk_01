@@ -21,8 +21,9 @@ export function parseError(errorMessage: string): ParsedError | null {
   }
 
   // "Unexpected token X in JSON at position N" 패턴
+  // .+? 로 이모지, 유니코드 이스케이프(\ud83d) 등 다문자 토큰도 처리
   const tokenMatch = description.match(
-    /Unexpected token\s+(\\?.)\s+in JSON at position\s+(\d+)/,
+    /Unexpected token\s+(.+?)\s+in JSON at position\s+(\d+)/,
   );
   if (tokenMatch) {
     return {
@@ -40,7 +41,7 @@ export function parseError(errorMessage: string): ParsedError | null {
   }
 
   // "Unexpected token X" (위치 없음)
-  const simpleMatch = description.match(/Unexpected token\s+(\\?.)/);
+  const simpleMatch = description.match(/Unexpected token\s+(\S+)/);
   if (simpleMatch) {
     return {
       token: simpleMatch[1],
