@@ -190,6 +190,8 @@ export default function InputForm({ templateType, onSubmit }: Props) {
             </label>
             <p className="text-xs text-gray-400 mb-1">
               비뿌 템플릿에 있는 버튼 URL 변수를 입력해주세요. 비어있으면 공백 처리됩니다.
+              <br />
+              <span className="text-gray-300">예시: http://  ·  https://  ·  공란(비워두기)</span>
             </p>
             <input
               type="text"

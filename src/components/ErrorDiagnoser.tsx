@@ -8,6 +8,7 @@ interface Props {
   liquidCode?: string;   // connected 모드에서 전달 (Step 2)
   isOpen: boolean;
   onToggle: () => void;
+  embedded?: boolean;    // 3열 레이아웃에서 카드 형태로 임베드
 }
 
 type InputMode = 'liquid' | 'error' | 'ai_fix';
@@ -17,7 +18,7 @@ function genId() {
   return `msg_${++msgIdCounter}_${Date.now()}`;
 }
 
-export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle }: Props) {
+export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('error');
@@ -244,9 +245,70 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle }: Props) 
     }
   }
 
+  const chatContent = (
+    <>
+      {/* 채팅 메시지 영역 */}
+      <div className={`${embedded ? 'flex-1 min-h-0' : 'max-h-80'} overflow-y-auto px-5 py-4 space-y-3 scrollbar-thin`}>
+        {messages.map(msg => (
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            liquidCode={activeLiquidCode}
+          />
+        ))}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* 입력 영역 */}
+      <div className="shrink-0 px-5 pb-4">
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={inputRef}
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={getPlaceholder()}
+            rows={inputMode === 'liquid' || inputMode === 'ai_fix' ? 3 : 1}
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim()}
+            className="px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-2xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          >
+            전송
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1.5 ml-1">
+          {inputMode === 'error' && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
+          {inputMode === 'liquid' && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
+          {inputMode === 'ai_fix' && 'ChatGPT/Claude에서 받은 수정 코드를 붙여넣어 주세요'}
+        </p>
+      </div>
+    </>
+  );
+
+  // 임베드 모드: 3열 레이아웃에서 카드 형태
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="shrink-0 px-5 py-3 border-b border-gray-100">
+          <span className="text-sm font-semibold text-blue-600 flex items-center gap-2">
+            <span className="text-base">💬</span>
+            오류 진단
+          </span>
+        </div>
+        <div className="flex-1 min-h-0 flex flex-col">
+          {chatContent}
+        </div>
+      </div>
+    );
+  }
+
+  // 기본 모드: 접이식 패널
   return (
     <div className="shrink-0 max-w-7xl mx-auto w-full px-4">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         {/* 접이식 헤더 */}
         <button
           onClick={onToggle}
@@ -263,44 +325,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle }: Props) 
 
         {isOpen && (
           <div className="border-t border-gray-100">
-            {/* 채팅 메시지 영역 */}
-            <div className="max-h-80 overflow-y-auto px-5 py-4 space-y-3 scrollbar-thin">
-              {messages.map(msg => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  liquidCode={activeLiquidCode}
-                />
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* 입력 영역 */}
-            <div className="px-5 pb-4">
-              <div className="flex gap-2 items-end">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={e => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={getPlaceholder()}
-                  rows={inputMode === 'liquid' || inputMode === 'ai_fix' ? 3 : 1}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!inputValue.trim()}
-                  className="px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                >
-                  전송
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-1.5 ml-1">
-                {inputMode === 'error' && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
-                {inputMode === 'liquid' && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
-                {inputMode === 'ai_fix' && 'ChatGPT/Claude에서 받은 수정 코드를 붙여넣어 주세요'}
-              </p>
-            </div>
+            {chatContent}
           </div>
         )}
       </div>

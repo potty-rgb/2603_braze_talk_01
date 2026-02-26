@@ -77,20 +77,9 @@ function App() {
         </div>
       </header>
 
-      {/* ErrorDiagnoser — Step 1 이상 또는 standalone 모드에서만 표시 */}
-      {(currentStep > 0 || isDiagnoserOpen) && (
-        <div className="shrink-0 pt-3 pb-1">
-          <ErrorDiagnoser
-            liquidCode={result?.liquidCode}
-            isOpen={isDiagnoserOpen}
-            onToggle={() => setIsDiagnoserOpen(prev => !prev)}
-          />
-        </div>
-      )}
-
       {/* StepIndicator — Step 1 이상에서만 표시 */}
       {currentStep > 0 && (
-        <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-2 pb-2">
+        <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-4 pb-4">
           <StepIndicator currentStep={currentStep} />
         </div>
       )}
@@ -98,22 +87,41 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-4 pb-4">
         {currentStep === 0 ? (
-          <TemplateTypeSelector
-            onSelect={handleTypeSelect}
-            onOpenDiagnoser={handleOpenDiagnoser}
-          />
+          <div className="flex flex-col h-full">
+            <TemplateTypeSelector
+              onSelect={handleTypeSelect}
+              onOpenDiagnoser={handleOpenDiagnoser}
+            />
+            {/* 홈 화면 — 카드 아래에 ErrorDiagnoser 표시 */}
+            {isDiagnoserOpen && (
+              <div className="shrink-0 pt-6 pb-2">
+                <ErrorDiagnoser
+                  isOpen={isDiagnoserOpen}
+                  onToggle={() => setIsDiagnoserOpen(prev => !prev)}
+                />
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 h-full">
-            {/* 좌측: 입력 폼 */}
-            <div className="overflow-y-auto pr-2 scrollbar-thin">
+          <div className="grid grid-cols-3 gap-5 h-full">
+            {/* 1열: 정보 입력 */}
+            <div className="overflow-y-auto scrollbar-thin bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                정보 입력
+              </h3>
               <InputForm
                 templateType={templateType!}
                 onSubmit={handleSubmit}
               />
             </div>
 
-            {/* 우측: 결과 */}
-            <div className="overflow-y-auto pl-2 scrollbar-thin">
+            {/* 2열: 결과 확인 */}
+            <div className="overflow-y-auto scrollbar-thin bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${result ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>3</span>
+                결과 확인
+              </h3>
               {result ? (
                 <ResultDisplay
                   result={result}
@@ -121,12 +129,22 @@ function App() {
                   onReset={handleReset}
                 />
               ) : (
-                <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-200 rounded-xl">
-                  <p className="text-gray-400 text-sm">
-                    정보를 입력하고 &quot;변환하기&quot;를 클릭하면 결과가 여기에 표시됩니다
+                <div className="flex items-center justify-center h-48 border-2 border-dashed border-gray-200 rounded-2xl">
+                  <p className="text-gray-400 text-sm text-center px-4">
+                    정보를 입력하고 &quot;변환하기&quot;를 클릭하면<br />결과가 여기에 표시됩니다
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* 3열: 오류 진단 */}
+            <div className="min-h-0">
+              <ErrorDiagnoser
+                liquidCode={result?.liquidCode}
+                isOpen={true}
+                onToggle={() => {}}
+                embedded
+              />
             </div>
           </div>
         )}
