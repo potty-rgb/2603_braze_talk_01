@@ -77,19 +77,23 @@ function App() {
         </div>
       </header>
 
-      {/* ErrorDiagnoser — StepIndicator 위에 배치 */}
-      <div className="shrink-0 pt-3 pb-1">
-        <ErrorDiagnoser
-          liquidCode={result?.liquidCode}
-          isOpen={isDiagnoserOpen}
-          onToggle={() => setIsDiagnoserOpen(prev => !prev)}
-        />
-      </div>
+      {/* ErrorDiagnoser — Step 1 이상 또는 standalone 모드에서만 표시 */}
+      {(currentStep > 0 || isDiagnoserOpen) && (
+        <div className="shrink-0 pt-3 pb-1">
+          <ErrorDiagnoser
+            liquidCode={result?.liquidCode}
+            isOpen={isDiagnoserOpen}
+            onToggle={() => setIsDiagnoserOpen(prev => !prev)}
+          />
+        </div>
+      )}
 
-      {/* StepIndicator */}
-      <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-2 pb-2">
-        <StepIndicator currentStep={currentStep} />
-      </div>
+      {/* StepIndicator — Step 1 이상에서만 표시 */}
+      {currentStep > 0 && (
+        <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-2 pb-2">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-4 pb-4">

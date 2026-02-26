@@ -145,6 +145,8 @@ Braze 테스트 발송 시 오류가 발생했을 때 원인을 진단하고 자
 오류 진단 기능의 해결방안을 팀원 간 공유하기 위해 Google Sheets를 사용합니다.
 
 > 현재 Google Sheets 연동이 설정되어 있어 바로 사용 가능합니다.
+>
+> **시트 바로가기**: [Google Sheets 열기](https://docs.google.com/spreadsheets/d/1obrymDag-g_XNgMXBsyVQYHzB5-l4tHCkAcnJcV-8A8/edit?gid=0#gid=0)
 
 ### 설정 방법 (재설정이 필요한 경우)
 
