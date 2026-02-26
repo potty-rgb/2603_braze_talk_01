@@ -2,9 +2,10 @@ import { useState } from 'react';
 
 interface Props {
   text: string;
+  label?: string;
 }
 
-export default function CopyButton({ text }: Props) {
+export default function CopyButton({ text, label = '전체 복사' }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -34,7 +35,7 @@ export default function CopyButton({ text }: Props) {
           : 'bg-blue-600 text-white hover:bg-blue-700'
       }`}
     >
-      {copied ? '복사됨!' : '전체 복사'}
+      {copied ? '복사됨!' : label}
     </button>
   );
 }

@@ -17,12 +17,6 @@ function App() {
     setTemplateType(type);
   }
 
-  function handleBack() {
-    setTemplateType(null);
-    setFormData(null);
-    setResult(null);
-  }
-
   function handleSubmit(data: FormData) {
     setFormData(data);
     const processingResult = processTemplate(data);
@@ -47,13 +41,24 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <header className="shrink-0 bg-white border-b border-gray-200 py-3">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-lg font-bold text-gray-900">
-            Braze 알림톡 Liquid 변환기
-          </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            알림톡 템플릿을 Braze Liquid 코드로 변환합니다
-          </p>
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">
+              Braze 알림톡 Liquid 변환기
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              알림톡 템플릿을 Braze Liquid 코드로 변환합니다
+            </p>
+          </div>
+          {currentStep > 0 && (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+            >
+              <span>🏠</span>
+              <span>처음으로</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -71,7 +76,6 @@ function App() {
               <InputForm
                 templateType={templateType!}
                 onSubmit={handleSubmit}
-                onBack={handleBack}
               />
             </div>
 

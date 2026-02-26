@@ -1,4 +1,5 @@
 import type { ExtractedVariable } from '../types';
+import { KOREAN_TO_ENGLISH } from '../constants/koreanToEnglishMap';
 
 interface Props {
   variables: ExtractedVariable[];
@@ -26,7 +27,7 @@ export default function VariableTable({ variables, onChange }: Props) {
         변수 매칭 결과
       </h3>
       <p className="text-xs text-gray-400 mb-3">
-        자동으로 추출된 변수와 값을 확인하세요. 잘못된 경우 직접 수정할 수 있습니다.
+        자동으로 추출된 변수와 값을 확인하세요. 필요 시 직접 수정할 수 있습니다.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
@@ -38,39 +39,40 @@ export default function VariableTable({ variables, onChange }: Props) {
             </tr>
           </thead>
           <tbody>
-            {variables.map((v, i) => (
-              <tr key={i} className="border-b border-gray-100">
-                <td className="px-3 py-2 font-mono text-gray-700">
-                  {'#{' + v.koreanName + '}'}
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={v.matchedValue}
-                    onChange={(e) => handleValueChange(i, e.target.value)}
-                    className="w-full px-2 py-1 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
+            {variables.map((v, i) => {
+              const isDictMatch = !!KOREAN_TO_ENGLISH[v.koreanName];
+              return (
+                <tr key={i} className="border-b border-gray-100">
+                  <td className="px-3 py-2 font-mono text-gray-700">
+                    {'#{' + v.koreanName + '}'}
+                  </td>
+                  <td className="px-3 py-2">
                     <input
                       type="text"
-                      value={v.englishName}
-                      onChange={(e) => handleNameChange(i, e.target.value)}
-                      placeholder="영어 변수명 입력"
-                      className={`w-full px-2 py-1 border rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 ${
-                        !v.englishName ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'
-                      }`}
+                      value={v.matchedValue}
+                      onChange={(e) => handleValueChange(i, e.target.value)}
+                      className="w-full px-2 py-1 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
-                    {!v.englishName && (
-                      <span className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded whitespace-nowrap">
-                        입력 필요
-                      </span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={v.englishName}
+                        onChange={(e) => handleNameChange(i, e.target.value)}
+                        placeholder="영어 변수명 입력"
+                        className="w-full px-2 py-1 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                      {!isDictMatch && v.isAutoNamed && (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded whitespace-nowrap" title="사전에 없는 변수명이라 로마자 변환으로 자동 생성되었습니다. 필요 시 수정하세요.">
+                          자동생성
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
