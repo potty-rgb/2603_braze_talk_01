@@ -15,9 +15,8 @@
 // Google Apps Script 웹앱 URL — 배포 후 여기에 입력
 const SHEET_CONFIG = {
   // Apps Script 배포 URL (GET: 데이터 조회, POST: 데이터 저장)
-  // 예: 'https://script.google.com/macros/s/AKfycbx.../exec'
-  readUrl: '',
-  writeUrl: '',
+  readUrl: 'https://script.google.com/macros/s/AKfycbxyVcuSk8sYQT36qH-vQjtGjHk-yhesOxa9XPxzMV6tmIRMmWmXbXXiN5OQ0fKWf_n2/exec',
+  writeUrl: 'https://script.google.com/macros/s/AKfycbxyVcuSk8sYQT36qH-vQjtGjHk-yhesOxa9XPxzMV6tmIRMmWmXbXXiN5OQ0fKWf_n2/exec',
 };
 
 const LOCAL_CACHE_KEY = 'braze_error_solutions_cache';
