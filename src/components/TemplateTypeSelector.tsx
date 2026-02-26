@@ -128,7 +128,7 @@ export default function TemplateTypeSelector({ onSelect, onOpenDiagnoser }: Prop
           <h3 className="text-base font-bold text-gray-800 mb-1.5 group-hover:text-amber-600 transition-colors">
             오류 해결하기
           </h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
+          <p className="text-sm text-gray-500 leading-relaxed whitespace-nowrap">
             Braze 발송 오류 진단 및 자동 수정
           </p>
         </button>
