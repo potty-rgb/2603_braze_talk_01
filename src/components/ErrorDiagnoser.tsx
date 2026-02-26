@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, DiagnosisResult } from '../types';
 import { diagnoseAndFix } from '../utils/errorDiagnoser';
 import { findSolution, findSolutionSync, saveSolution, buildAiPrompt } from '../utils/errorStore';
@@ -9,6 +9,7 @@ interface Props {
   isOpen: boolean;
   onToggle: () => void;
   embedded?: boolean;    // 3열 레이아웃에서 카드 형태로 임베드
+  onCodeFixed?: (fixedCode: string) => void;  // connected 모드: 수정된 코드 전파
 }
 
 type InputMode = 'liquid' | 'error' | 'ai_fix';
@@ -29,7 +30,7 @@ function isLiquidCode(input: string): boolean {
   return false;
 }
 
-export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded }: Props) {
+export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded, onCodeFixed }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('error');
@@ -37,6 +38,10 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   const [standaloneError, setStandaloneError] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Standalone 후속 흐름
+  const [standaloneLatestCode, setStandaloneLatestCode] = useState('');
+  const [pendingError, setPendingError] = useState('');
+  const [awaitingChoice, setAwaitingChoice] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -76,6 +81,9 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   useEffect(() => {
     if (liquidCode) {
       setStandaloneLiquid('');
+      setStandaloneLatestCode('');
+      setPendingError('');
+      setAwaitingChoice(false);
       setInitialized(false);
     }
   }, [liquidCode]);
@@ -87,6 +95,9 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
       setMessages([]);
       setStandaloneLiquid('');
       setStandaloneError('');
+      setStandaloneLatestCode('');
+      setPendingError('');
+      setAwaitingChoice(false);
       setInputValue('');
     }
   }, [isOpen]);
@@ -98,10 +109,10 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
 
   // 포커스
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !awaitingChoice) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen, inputMode]);
+  }, [isOpen, inputMode, awaitingChoice]);
 
   function addMessage(msg: Omit<ChatMessage, 'id'>) {
     const newMsg = { ...msg, id: genId() };
@@ -109,9 +120,46 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
     return newMsg;
   }
 
+  /** Standalone 대화 리셋 */
+  function resetConversation() {
+    setMessages([{
+      id: genId(),
+      role: 'system',
+      content: '대화가 초기화되었습니다.\n오류 메시지와 Braze Liquid 코드 전체를 붙여넣어 주세요.',
+      type: 'info',
+    }]);
+    setStandaloneLiquid('');
+    setStandaloneError('');
+    setStandaloneLatestCode('');
+    setPendingError('');
+    setAwaitingChoice(false);
+    setInputMode('error');
+  }
+
+  /** Standalone 후속 선택지 처리 */
+  const handleChoice = useCallback(async (action: string) => {
+    setAwaitingChoice(false);
+    const errorToProcess = pendingError;
+    setPendingError('');
+
+    if (action === 'same_code') {
+      // 마지막 수정된 코드 기반으로 재진단
+      addMessage({
+        role: 'system',
+        content: '이전 수정 코드를 기반으로 재진단합니다.',
+        type: 'info',
+      });
+      await processError(errorToProcess, standaloneLatestCode);
+    } else if (action === 'different_code') {
+      // 리셋
+      resetConversation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingError, standaloneLatestCode]);
+
   async function handleSend() {
     const value = inputValue.trim();
-    if (!value) return;
+    if (!value || awaitingChoice) return;
 
     setInputValue('');
 
@@ -129,6 +177,16 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         type: 'fix_result',
         fixedCode: value,
       });
+
+      // Standalone: 최신 코드 업데이트
+      if (isStandalone) {
+        setStandaloneLatestCode(value);
+      }
+
+      // Connected: 수정된 코드 전파
+      if (onCodeFixed) {
+        onCodeFixed(value);
+      }
 
       // Google Sheets에 저장
       saveSolution(
@@ -190,7 +248,50 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
       }
     }
 
-    // 일반 오류 메시지 입력 (connected 모드, 또는 standalone에서 첫 진단 이후)
+    // Standalone 후속 입력: 첫 진단 이후에 새 입력이 들어온 경우
+    if (isStandalone && standaloneLiquid && standaloneLatestCode) {
+      const isCode = isLiquidCode(value);
+
+      if (isCode) {
+        // 새 코드 입력 → 리셋 후 새 코드 저장
+        addMessage({
+          role: 'user',
+          content: value.length > 100 ? value.substring(0, 100) + '...' : value,
+          type: 'liquid_input',
+        });
+        setStandaloneLiquid(value);
+        setStandaloneLatestCode('');
+        setPendingError('');
+        setAwaitingChoice(false);
+        addMessage({
+          role: 'system',
+          content: '새 코드를 확인했습니다. 오류 메시지를 붙여넣어 주세요.',
+          type: 'info',
+        });
+        return;
+      } else {
+        // 오류 메시지 입력 → 선택지 제시
+        addMessage({
+          role: 'user',
+          content: value,
+          type: 'error_input',
+        });
+        setPendingError(value);
+        setAwaitingChoice(true);
+        addMessage({
+          role: 'system',
+          content: '어떤 경우인가요?',
+          type: 'choice_prompt',
+          choiceButtons: [
+            { label: '같은 코드의 다른 오류', action: 'same_code' },
+            { label: '다른 코드의 오류 (리셋)', action: 'different_code' },
+          ],
+        });
+        return;
+      }
+    }
+
+    // 일반 오류 메시지 입력 (connected 모드, 또는 standalone에서 첫 진단)
     addMessage({
       role: 'user',
       content: value,
@@ -214,6 +315,12 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
           type: 'fix_result',
           fixedCode: savedSync.fixedCode,
         });
+        if (isStandalone && savedSync.fixedCode) {
+          setStandaloneLatestCode(savedSync.fixedCode);
+        }
+        if (onCodeFixed && savedSync.fixedCode) {
+          onCodeFixed(savedSync.fixedCode);
+        }
         return;
       }
 
@@ -225,6 +332,12 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
           type: 'fix_result',
           fixedCode: savedRemote.fixedCode,
         });
+        if (isStandalone && savedRemote.fixedCode) {
+          setStandaloneLatestCode(savedRemote.fixedCode);
+        }
+        if (onCodeFixed && savedRemote.fixedCode) {
+          onCodeFixed(savedRemote.fixedCode);
+        }
         return;
       }
 
@@ -262,6 +375,17 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         return;
       }
 
+      // 200 OK → 전용 카드
+      if (result.errorType === 'api_200_ok') {
+        addMessage({
+          role: 'system',
+          content: '',
+          type: 'diagnosis',
+          diagnosis: result,
+        });
+        return;
+      }
+
       // 구조적 오류 → AI 안내
       if (result.errorType === 'structure') {
         addMessage({
@@ -275,7 +399,6 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
       }
 
       // unknown 타입이지만 실제 수정이 발생한 경우 → 자동 수정 결과 표시
-      // (예: 이모지 토큰 → json_escape 추가로 수정됨)
       if (result.errorType === 'unknown' && result.changeDetails.length === 0) {
         addMessage({
           role: 'system',
@@ -307,6 +430,16 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         fixedCode: result.fixedCode,
         changeDetails: result.changeDetails,
       });
+
+      // Standalone: 최신 코드 업데이트
+      if (isStandalone && result.fixedCode) {
+        setStandaloneLatestCode(result.fixedCode);
+      }
+
+      // Connected: 수정된 코드 전파
+      if (onCodeFixed && result.fixedCode && result.fixedCode !== codeToUse) {
+        onCodeFixed(result.fixedCode);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -320,6 +453,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
   }
 
   function getPlaceholder(): string {
+    if (awaitingChoice) return '위 선택지를 클릭해주세요...';
     if (inputMode === 'ai_fix') return 'AI가 제공한 수정된 코드를 붙여넣어 주세요...';
     // Standalone 초기 단계: 아직 코드를 받지 못한 상태
     if (isStandalone && !standaloneLiquid) {
@@ -338,6 +472,8 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
             key={msg.id}
             message={msg}
             liquidCode={activeLiquidCode}
+            onChoice={handleChoice}
+            awaitingChoice={awaitingChoice}
           />
         ))}
         {isProcessing && (
@@ -363,22 +499,24 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
+            disabled={awaitingChoice}
             rows={(isStandalone && !standaloneLiquid) || inputMode === 'ai_fix' ? 3 : 1}
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-2xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
           />
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || awaitingChoice}
             className="px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-2xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
             전송
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1.5 ml-1">
-          {inputMode === 'ai_fix' && 'ChatGPT/Claude에서 받은 수정 코드를 붙여넣어 주세요'}
-          {inputMode === 'error' && isStandalone && !standaloneLiquid && !standaloneError && '오류 메시지 또는 Liquid 코드, 순서 상관없이 입력해주세요'}
-          {inputMode === 'error' && isStandalone && !standaloneLiquid && standaloneError && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
-          {inputMode === 'error' && (standaloneLiquid || !isStandalone) && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
+          {awaitingChoice && '위 버튼을 클릭하여 진행 방법을 선택해주세요'}
+          {!awaitingChoice && inputMode === 'ai_fix' && 'ChatGPT/Claude에서 받은 수정 코드를 붙여넣어 주세요'}
+          {!awaitingChoice && inputMode === 'error' && isStandalone && !standaloneLiquid && !standaloneError && '오류 메시지 또는 Liquid 코드, 순서 상관없이 입력해주세요'}
+          {!awaitingChoice && inputMode === 'error' && isStandalone && !standaloneLiquid && standaloneError && 'Braze 메시지 에디터의 전체 코드를 붙여넣어 주세요'}
+          {!awaitingChoice && inputMode === 'error' && (standaloneLiquid || !isStandalone) && 'Enter로 전송 · 여러 오류를 연속으로 진단할 수 있습니다'}
         </p>
       </div>
     </>
@@ -431,7 +569,17 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
 
 // ─── 메시지 버블 컴포넌트 ───
 
-function MessageBubble({ message, liquidCode }: { message: ChatMessage; liquidCode: string }) {
+function MessageBubble({
+  message,
+  liquidCode,
+  onChoice,
+  awaitingChoice,
+}: {
+  message: ChatMessage;
+  liquidCode: string;
+  onChoice: (action: string) => void;
+  awaitingChoice: boolean;
+}) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -444,6 +592,10 @@ function MessageBubble({ message, liquidCode }: { message: ChatMessage; liquidCo
 
   // 시스템 메시지
   if (message.type === 'diagnosis' && message.diagnosis) {
+    // 200 OK 전용 카드
+    if (message.diagnosis.errorType === 'api_200_ok') {
+      return <Api200OkCard />;
+    }
     return <DiagnosisCard diagnosis={message.diagnosis} fixedCode={message.fixedCode} changeDetails={message.changeDetails} />;
   }
 
@@ -455,11 +607,151 @@ function MessageBubble({ message, liquidCode }: { message: ChatMessage; liquidCo
     return <FixResultCard content={message.content} fixedCode={message.fixedCode} />;
   }
 
+  if (message.type === 'choice_prompt' && message.choiceButtons) {
+    return <ChoiceCard content={message.content} buttons={message.choiceButtons} onChoice={onChoice} disabled={!awaitingChoice} />;
+  }
+
   // 일반 시스템 메시지
   return (
     <div className="flex justify-start">
       <div className="max-w-[80%] px-4 py-2.5 bg-gray-100 text-gray-700 rounded-2xl rounded-bl-md text-sm whitespace-pre-wrap">
         {message.content}
+      </div>
+    </div>
+  );
+}
+
+// ─── 선택지 카드 ───
+
+function ChoiceCard({
+  content,
+  buttons,
+  onChoice,
+  disabled,
+}: {
+  content: string;
+  buttons: { label: string; action: string }[];
+  onChoice: (action: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%]">
+        <div className="px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+          <p className="text-sm font-semibold text-indigo-800 mb-3">{content}</p>
+          <div className="flex gap-2">
+            {buttons.map((btn) => (
+              <button
+                key={btn.action}
+                onClick={() => onChoice(btn.action)}
+                disabled={disabled}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer ${
+                  disabled
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : btn.action === 'different_code'
+                      ? 'bg-white text-indigo-700 border border-indigo-300 hover:bg-indigo-100'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 200 OK 전용 카드 ───
+
+function Api200OkCard() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] space-y-2">
+        {/* 흐름도 */}
+        <div className="px-4 py-4 bg-orange-50 border border-orange-200 rounded-xl">
+          <p className="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+            <span>📡</span>
+            발송 흐름 진단
+          </p>
+          {/* 시각화 흐름도 */}
+          <div className="flex items-center justify-center gap-1 text-sm py-2">
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 bg-blue-100 border-2 border-blue-400 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">📱</span>
+              </div>
+              <span className="text-xs font-medium text-blue-700 mt-1">Braze</span>
+            </div>
+            <div className="flex flex-col items-center mx-1">
+              <div className="flex items-center">
+                <div className="w-8 h-0.5 bg-green-500" />
+                <span className="text-green-600 font-bold text-xs px-1 whitespace-nowrap">200 OK</span>
+                <div className="w-4 h-0.5 bg-green-500" />
+                <span className="text-green-500">▶</span>
+              </div>
+              <span className="text-[10px] text-green-600 mt-0.5">성공</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 bg-yellow-100 border-2 border-yellow-400 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">📨</span>
+              </div>
+              <span className="text-xs font-medium text-yellow-700 mt-1">비즈뿌리오</span>
+            </div>
+            <div className="flex flex-col items-center mx-1">
+              <div className="flex items-center">
+                <div className="w-6 h-0.5 bg-red-400" />
+                <span className="text-red-500 font-bold text-lg">✕</span>
+                <div className="w-4 h-0.5 bg-red-400" />
+                <span className="text-red-400">▶</span>
+              </div>
+              <span className="text-[10px] text-red-500 mt-0.5">실패</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">👤</span>
+              </div>
+              <span className="text-xs font-medium text-gray-500 mt-1">수신자</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 설명 */}
+        <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+            <span>⚠️</span>
+            코드 오류가 아닌 발송 실패입니다
+          </p>
+          <p className="text-xs text-amber-700 mt-1.5 leading-relaxed">
+            Braze에서 비즈뿌리오로의 API 요청은 <strong>200 OK</strong>로 성공했지만,
+            비즈뿌리오가 실제 수신자에게 메시지를 전달하지 못했습니다.
+          </p>
+          <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+            이 경우 Liquid 코드 자체의 문제가 아니므로 자동 수정이 불가합니다.
+          </p>
+        </div>
+
+        {/* 조치 안내 */}
+        <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+            <span>🔍</span>
+            확인 방법
+          </p>
+          <div className="mt-2 space-y-1.5 text-xs text-blue-700">
+            <div className="flex items-start gap-2">
+              <span className="text-blue-500 mt-0.5 shrink-0 font-bold">1.</span>
+              <span><strong>Platform_Api</strong> 계정으로 비즈뿌리오에 로그인</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-blue-500 mt-0.5 shrink-0 font-bold">2.</span>
+              <span><strong>발송 결과 조회</strong>에서 해당 발송 건의 실패 원인 확인</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-blue-500 mt-0.5 shrink-0 font-bold">3.</span>
+              <span>주요 실패 원인: 수신번호 오류, 템플릿 불일치, 발송 한도 초과 등</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -477,7 +769,8 @@ function DiagnosisCard({
   changeDetails?: import('../types').ChangeDetail[];
 }) {
   const errorTypeIcon: Record<string, string> = {
-    tab: '⌨️', newline: '↵', quote: '"', single_quote: "'", backslash: '\\', structure: '🧱', unknown: '❓',
+    tab: '⌨️', newline: '↵', quote: '"', single_quote: "'", backslash: '\\',
+    structure: '🧱', api_error: '📡', api_200_ok: '📡', unknown: '❓',
   };
 
   return (

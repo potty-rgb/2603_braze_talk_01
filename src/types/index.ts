@@ -45,6 +45,7 @@ export type ErrorType =
   | 'backslash'
   | 'structure'
   | 'api_error'
+  | 'api_200_ok'
   | 'unknown';
 
 export interface ChangeDetail {
@@ -66,8 +67,9 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'system';
   content: string;
-  type?: 'error_input' | 'liquid_input' | 'diagnosis' | 'fix_result' | 'ai_guide' | 'info';
+  type?: 'error_input' | 'liquid_input' | 'diagnosis' | 'fix_result' | 'ai_guide' | 'info' | 'choice_prompt';
   fixedCode?: string;
   changeDetails?: ChangeDetail[];
   diagnosis?: DiagnosisResult;
+  choiceButtons?: { label: string; action: string }[];
 }

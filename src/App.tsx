@@ -48,6 +48,12 @@ function App() {
     setIsDiagnoserOpen(false);
   }
 
+  function handleCodeFixed(fixedCode: string) {
+    if (result) {
+      setResult(prev => prev ? { ...prev, liquidCode: fixedCode } : prev);
+    }
+  }
+
   function handleOpenDiagnoser() {
     setIsDiagnoserOpen(true);
   }
@@ -144,6 +150,7 @@ function App() {
                 isOpen={true}
                 onToggle={() => {}}
                 embedded
+                onCodeFixed={handleCodeFixed}
               />
             </div>
           </div>

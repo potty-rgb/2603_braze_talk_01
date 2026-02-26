@@ -54,6 +54,11 @@ export function parseError(errorMessage: string): ParsedError | null {
     return { token: 'API_TO_REQUIRED', position: null };
   }
 
+  // 200 OK 패턴: Braze→비즈뿌리오 요청 성공, 비즈뿌리오 발송 실패
+  if (/["']?code["']?\s*:\s*200\b/.test(description)) {
+    return { token: 'API_200_OK', position: null };
+  }
+
   return null;
 }
 
@@ -80,6 +85,8 @@ function classifyError(token: string): ErrorType {
       return 'structure';
     case 'API_TO_REQUIRED':
       return 'api_error';
+    case 'API_200_OK':
+      return 'api_200_ok';
     default:
       return 'unknown';
   }
@@ -129,6 +136,12 @@ function getDiagnosisMessages(errorType: ErrorType): {
         description: '수신번호(to) 필드가 누락되었습니다',
         cause: 'Braze에서 비즈뿌리오로 발송 시 수신번호가 전달되지 않았습니다. Braze 캠페인/캔버스의 수신번호 설정을 확인해주세요.',
         fixApplied: 'Liquid 코드 문제가 아닌 Braze 설정 문제입니다. 수신번호 필드 매핑을 확인해주세요.',
+      };
+    case 'api_200_ok':
+      return {
+        description: '발송 요청은 성공했으나 메시지가 도달하지 않았습니다',
+        cause: 'Braze에서 비즈뿌리오로의 API 요청은 200 OK로 성공했지만, 비즈뿌리오가 실제 수신자에게 메시지를 전달하지 못했습니다.',
+        fixApplied: 'Platform_Api 계정으로 비즈뿌리오에 로그인하여 발송 결과를 확인해주세요.',
       };
     case 'structure':
       return {
@@ -305,8 +318,8 @@ export function diagnoseAndFix(
   const messages = getDiagnosisMessages(errorType);
   const changeDetails: ChangeDetail[] = [];
 
-  // 구조적 오류 / API 오류는 자동 수정 불가
-  if (errorType === 'structure' || errorType === 'api_error') {
+  // 구조적 오류 / API 오류 / 200 OK는 자동 수정 불가
+  if (errorType === 'structure' || errorType === 'api_error' || errorType === 'api_200_ok') {
     return {
       errorType,
       ...messages,
