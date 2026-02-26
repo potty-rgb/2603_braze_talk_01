@@ -2,7 +2,6 @@ import type { ProcessingResult, ExtractedVariable } from '../types';
 import TemplateSection from './TemplateSection';
 import VariableTable from './VariableTable';
 import CopyButton from './CopyButton';
-import ErrorDiagnoser from './ErrorDiagnoser';
 
 interface Props {
   result: ProcessingResult;
@@ -57,9 +56,6 @@ export default function ResultDisplay({ result, onVariableChange, onReset }: Pro
       <div className="mt-4 flex justify-center">
         <CopyButton text={result.liquidCode} />
       </div>
-
-      {/* 오류 진단 */}
-      <ErrorDiagnoser liquidCode={result.liquidCode} />
     </div>
   );
 }

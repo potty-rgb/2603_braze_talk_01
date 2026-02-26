@@ -80,7 +80,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
           onChange={(e) => setTemplateText(e.target.value)}
           placeholder="#{강의명}의 #{쿠폰내용} 쿠폰이 오늘 밤에 마감돼요!&#10;■ 쿠폰명: #{쿠폰이름} ■ 만료일시: #{만료일시}"
           rows={3}
-          className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors.templateText ? 'border-red-400' : 'border-gray-300'}`}
+          className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.templateText ? 'border-red-400' : 'border-gray-300'}`}
         />
         {errors.templateText && (
           <p className="text-xs text-red-500 mt-1">{errors.templateText}</p>
@@ -100,7 +100,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
           onChange={(e) => setSendingText(e.target.value)}
           placeholder="<2026NEW! 서울투자 기초반>의 재수강 투자 응원 6만원 쿠폰이 오늘 밤에 마감돼요!&#10;■ 쿠폰명: 재수강 투자 응원 6만원 쿠폰 ■ 만료일시: 01.29(목) 23:59까지"
           rows={3}
-          className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors.sendingText ? 'border-red-400' : 'border-gray-300'}`}
+          className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.sendingText ? 'border-red-400' : 'border-gray-300'}`}
         />
         {errors.sendingText && (
           <p className="text-xs text-red-500 mt-1">{errors.sendingText}</p>
@@ -120,7 +120,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
           value={templateCode}
           onChange={(e) => setTemplateCode(e.target.value)}
           placeholder="bizp_2025123103044120835684085"
-          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors.templateCode ? 'border-red-400' : 'border-gray-300'}`}
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.templateCode ? 'border-red-400' : 'border-gray-300'}`}
         />
         {errors.templateCode && (
           <p className="text-xs text-red-500 mt-1">{errors.templateCode}</p>
@@ -136,7 +136,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
           <select
             value={talkType}
             onChange={(e) => setTalkType(e.target.value as TalkType)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="AT">AT (알림톡)</option>
             <option value="AI">AI (이미지 알림톡)</option>
@@ -149,7 +149,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
           <select
             value={messageType}
             onChange={(e) => setMessageType(e.target.value as MessageType)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="info">info (정보성)</option>
             <option value="ad">ad (광고성)</option>
@@ -176,7 +176,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
               value={buttonName}
               onChange={(e) => setButtonName(e.target.value)}
               placeholder="자세히 보기🎁"
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors.buttonName ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.buttonName ? 'border-red-400' : 'border-gray-300'}`}
             />
             {errors.buttonName && (
               <p className="text-xs text-red-500 mt-1">{errors.buttonName}</p>
@@ -196,7 +196,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
               value={urlVariable}
               onChange={(e) => setUrlVariable(e.target.value)}
               placeholder="https://"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -213,7 +213,7 @@ export default function InputForm({ templateType, onSubmit }: Props) {
               value={utm}
               onChange={(e) => setUtm(e.target.value)}
               placeholder="https://weolbu.com/event?utm_source=katalk&utm_medium=alimtalk"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </>

@@ -60,3 +60,13 @@ export interface DiagnosisResult {
   fixedCode: string;
   changeDetails: ChangeDetail[];
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'system';
+  content: string;
+  type?: 'error_input' | 'liquid_input' | 'diagnosis' | 'fix_result' | 'ai_guide' | 'info';
+  fixedCode?: string;
+  changeDetails?: ChangeDetail[];
+  diagnosis?: DiagnosisResult;
+}

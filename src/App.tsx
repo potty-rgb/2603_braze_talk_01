@@ -1,17 +1,26 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { TemplateType, FormData, ProcessingResult, ExtractedVariable } from './types';
 import { processTemplate } from './utils/liquidGenerator';
 import StepIndicator from './components/StepIndicator';
 import TemplateTypeSelector from './components/TemplateTypeSelector';
 import InputForm from './components/InputForm';
 import ResultDisplay from './components/ResultDisplay';
+import ErrorDiagnoser from './components/ErrorDiagnoser';
 
 function App() {
   const [templateType, setTemplateType] = useState<TemplateType | null>(null);
   const [formData, setFormData] = useState<FormData | null>(null);
   const [result, setResult] = useState<ProcessingResult | null>(null);
+  const [isDiagnoserOpen, setIsDiagnoserOpen] = useState(false);
 
   const currentStep = templateType === null ? 0 : result ? 2 : 1;
+
+  // Step 2 (결과) 진입 시 자동으로 ErrorDiagnoser 열기
+  useEffect(() => {
+    if (currentStep === 2) {
+      setIsDiagnoserOpen(true);
+    }
+  }, [currentStep]);
 
   function handleTypeSelect(type: TemplateType) {
     setTemplateType(type);
@@ -36,10 +45,16 @@ function App() {
     setTemplateType(null);
     setFormData(null);
     setResult(null);
+    setIsDiagnoserOpen(false);
+  }
+
+  function handleOpenDiagnoser() {
+    setIsDiagnoserOpen(true);
   }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header */}
       <header className="shrink-0 bg-white border-b border-gray-200 py-3">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <div>
@@ -62,13 +77,27 @@ function App() {
         </div>
       </header>
 
-      <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-4 pb-2">
+      {/* ErrorDiagnoser — StepIndicator 위에 배치 */}
+      <div className="shrink-0 pt-3 pb-1">
+        <ErrorDiagnoser
+          liquidCode={result?.liquidCode}
+          isOpen={isDiagnoserOpen}
+          onToggle={() => setIsDiagnoserOpen(prev => !prev)}
+        />
+      </div>
+
+      {/* StepIndicator */}
+      <div className="shrink-0 max-w-7xl mx-auto w-full px-4 pt-2 pb-2">
         <StepIndicator currentStep={currentStep} />
       </div>
 
+      {/* Main Content */}
       <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-4 pb-4">
         {currentStep === 0 ? (
-          <TemplateTypeSelector onSelect={handleTypeSelect} />
+          <TemplateTypeSelector
+            onSelect={handleTypeSelect}
+            onOpenDiagnoser={handleOpenDiagnoser}
+          />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 h-full">
             {/* 좌측: 입력 폼 */}
