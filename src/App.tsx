@@ -93,7 +93,7 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-4 pb-4">
         {currentStep === 0 ? (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full overflow-y-auto scrollbar-thin">
             <TemplateTypeSelector
               onSelect={handleTypeSelect}
               onOpenDiagnoser={handleOpenDiagnoser}
