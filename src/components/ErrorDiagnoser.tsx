@@ -184,7 +184,7 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         return;
       }
 
-      // 2. 규칙 기반 진단
+      // 2. Liquid 코드 검증 (standalone 모드에서는 반드시 수신해야 함)
       if (!activeLiquidCode) {
         addMessage({
           role: 'system',
@@ -195,40 +195,49 @@ export default function ErrorDiagnoser({ liquidCode, isOpen, onToggle, embedded 
         return;
       }
 
+      // 3. 규칙 기반 진단
       const result = diagnoseAndFix(errorInput, activeLiquidCode);
 
-      if (!result) {
-        // 인식 불가 오류 → AI 안내 (오류 메시지 + Liquid 코드 함께 복사)
+      // AI 안내가 필요한 경우 (인식 불가 또는 자동 수정 불가)
+      if (!result || result.errorType === 'structure' || result.errorType === 'unknown') {
+        // Standalone 모드: 오류 문안 + Liquid 전문 모두 있는지 재검증
+        if (isStandalone && !standaloneLiquid) {
+          addMessage({
+            role: 'system',
+            content: 'AI 서비스 활용을 위해 Liquid 코드 전문이 필요합니다. Liquid 코드를 먼저 입력해주세요.',
+            type: 'info',
+          });
+          setInputMode('liquid');
+          return;
+        }
+
+        const diagnosis = result || {
+          errorType: 'unknown' as const,
+          description: '인식할 수 없는 오류 형식입니다',
+          cause: errorInput,
+          fixApplied: 'AI 서비스를 통해 해결해주세요.',
+          fixedCode: activeLiquidCode,
+          changeDetails: [],
+        };
+
         addMessage({
           role: 'system',
           content: '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
           type: 'ai_guide',
-          diagnosis: {
-            errorType: 'unknown',
-            description: '인식할 수 없는 오류 형식입니다',
-            cause: errorInput,
-            fixApplied: 'AI 서비스를 통해 해결해주세요.',
-            fixedCode: activeLiquidCode,
-            changeDetails: [],
-          },
+          diagnosis,
         });
         setInputMode('ai_fix');
         return;
       }
 
-      if (result.errorType === 'structure' || result.errorType === 'unknown' || result.errorType === 'api_error') {
-        // AI 안내
+      // API 오류 (수신번호 누락 등) → 설정 안내
+      if (result.errorType === 'api_error') {
         addMessage({
           role: 'system',
-          content: result.errorType === 'api_error'
-            ? result.description
-            : '자동 진단이 어려운 오류입니다. AI 서비스를 활용해주세요.',
-          type: result.errorType === 'api_error' ? 'diagnosis' : 'ai_guide',
+          content: '',
+          type: 'diagnosis',
           diagnosis: result,
         });
-        if (result.errorType !== 'api_error') {
-          setInputMode('ai_fix');
-        }
         return;
       }
 
